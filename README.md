@@ -14,7 +14,7 @@ Built with **n8n**, **OpenAI**, **HubSpot**, **Supabase** and **Slack**.
 2. **Validates and cleans** the data. Invalid leads get a `422` response and are logged.
 3. **Creates or updates the contact in HubSpot**, so a repeat submission never makes a duplicate.
 4. **AI agent** (GPT-4o-mini) reads the lead and returns structured output: score, priority, category, summary and a draft reply email. It uses a **RAG knowledge base** (Supabase vector store) so replies match real company information.
-5. **Responds `200` immediately**, so the form never waits on the AI or on a human.
+5. **Responds `200`** (with status, contactId, score and priority) as soon as scoring is done, so the sender never waits for the human approval.
 6. **Routes by priority**
    - **High:** posts to Slack with the summary and draft email, with **Approve and Send** and **Reject** buttons.
      - Approve: sends the email and creates a HubSpot follow-up task.
