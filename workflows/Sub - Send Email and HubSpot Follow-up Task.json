@@ -1,0 +1,171 @@
+{
+  "name": "Sub - Send Email and HubSpot Follow-up Task",
+  "nodes": [
+    {
+      "parameters": {
+        "fromEmail": "t.vero101179@gmail.com",
+        "toEmail": "={{ $('Start').first().json.email_firstItem }}",
+        "subject": "={{ $('Start').first().json.emailSubject_firstItem }}",
+        "emailFormat": "text",
+        "text": "={{ $('Start').first().json.emailBody_firstItem }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1360,
+        -736
+      ],
+      "id": "85a74431-f6ae-4e30-812e-a51553568f00",
+      "name": "Send Email",
+      "webhookId": "64d0d379-2ee6-4af3-8d53-cc2342d0cc50",
+      "credentials": {
+        "smtp": {
+          "id": "Ymn8eHoe6kDRxpvQ",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "resource": "engagement",
+        "type": "task",
+        "dueDate": "={{ new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() }}",
+        "metadata": {
+          "body": "={{ $('Start').first().json.summary_firstItem }}",
+          "status": "NOT_STARTED",
+          "subject": "=Follow up: {{ $('Start').first().json.fullName_firstItem }} (high priority lead)"
+        },
+        "additionalFields": {
+          "associations": {
+            "contactIds": "={{ $('Start').first().json.contactId_firstItem }}",
+            "ownerId": "={{ $json.results[0].id }}"
+          }
+        }
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        1696,
+        -736
+      ],
+      "id": "104f3e54-7539-4606-b420-be2159c254b5",
+      "name": "HubSpot Follow-up Task",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "nvY9ED5itWcDa86f",
+          "name": "HubSpot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.hubapi.com/crm/v3/owners",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1536,
+        -736
+      ],
+      "id": "e4cdc48f-5126-4a2b-8def-d9f79bf7b03a",
+      "name": "Get HubSpot Owner",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "nvY9ED5itWcDa86f",
+          "name": "HubSpot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "email_firstItem",
+              "type": "any"
+            },
+            {
+              "name": "emailSubject_firstItem",
+              "type": "any"
+            },
+            {
+              "name": "emailBody_firstItem",
+              "type": "any"
+            },
+            {
+              "name": "summary_firstItem",
+              "type": "any"
+            },
+            {
+              "name": "fullName_firstItem",
+              "type": "any"
+            },
+            {
+              "name": "contactId_firstItem",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "c429c375-ff90-4b57-b2a9-abbbe157435e",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        1152,
+        -736
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Get HubSpot Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get HubSpot Owner": {
+      "main": [
+        [
+          {
+            "node": "HubSpot Follow-up Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "938988cc-e3d7-42d6-b06c-64646b66bb83",
+  "meta": {
+    "instanceId": "529af08a1386e72ecd741f19fc71d44377f5910651628263c6147272a4ca7547"
+  },
+  "id": "11JdPJzRdEoOT7nn",
+  "tags": []
+}

@@ -1,0 +1,230 @@
+{
+  "name": "Sub - HubSpot Upsert Contact",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "720e2d2d-a0cc-4f89-bbe4-9d8621bca6b5",
+              "name": "contactId",
+              "value": "={{ $json.vid }}",
+              "type": "number"
+            },
+            {
+              "id": "ea9c64e9-52a8-439e-a36d-1dc5fa86868a",
+              "name": "=isNew",
+              "value": "={{ $json.isNew ?? false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "0383d647-c253-47b7-abf0-dfb73ab1ab82",
+              "name": "lead",
+              "value": "={{ $('Start').item.json.lead }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        16,
+        -608
+      ],
+      "id": "4a335aa7-cfca-4447-991e-1226c19468e4",
+      "name": "Shape Output"
+    },
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "email": "={{ $json.lead_email }}",
+        "additionalFields": {
+          "companyName": "={{ $json.lead_company }}",
+          "firstName": "={{ $json.lead_firstName }}",
+          "lastName": "={{ $json.lead_lastName }}",
+          "message": "={{ $json.lead_message }}"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        -608
+      ],
+      "id": "53db4c26-a401-4923-8d29-b74439f89fa2",
+      "name": "HubSpot Upsert Contact",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "nvY9ED5itWcDa86f",
+          "name": "HubSpot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ee4c1ab3-6589-456f-8c9a-3a25602c6650",
+              "name": "contactId_firstItem",
+              "value": "={{ $('Shape Output').first().json.contactId }}",
+              "type": "string"
+            },
+            {
+              "id": "da3dfaa1-ae34-4618-a2f5-07a1629d8e34",
+              "name": "isNew_firstItem",
+              "value": "={{ $('Shape Output').first().json.isNew }}",
+              "type": "string"
+            },
+            {
+              "id": "3f98c05c-f3ce-44cb-bbbf-c33015ca8df0",
+              "name": "lead_email_firstItem",
+              "value": "={{ $('Shape Output').first().json.lead.email }}",
+              "type": "string"
+            },
+            {
+              "id": "a26a5691-173b-45d9-a4f9-92b7ade0c69f",
+              "name": "lead_fullName_firstItem",
+              "value": "={{ $('Shape Output').first().json.lead.fullName }}",
+              "type": "string"
+            },
+            {
+              "id": "8f328270-cdab-4d23-a366-7eb0fae5b506",
+              "name": "lead_company_firstItem",
+              "value": "={{ $('Shape Output').first().json.lead.company }}",
+              "type": "string"
+            },
+            {
+              "id": "500dc4d2-d0aa-4105-825e-7caa3add1b4f",
+              "name": "lead_fullName",
+              "value": "={{ $json.lead.fullName }}",
+              "type": "string"
+            },
+            {
+              "id": "575783de-7a3e-48c0-9b78-1addd34aad06",
+              "name": "lead_company",
+              "value": "={{ $json.lead.company }}",
+              "type": "string"
+            },
+            {
+              "id": "60c81243-4c78-40b3-bf15-f302ac0c0023",
+              "name": "lead_message",
+              "value": "={{ $json.lead.message }}",
+              "type": "string"
+            },
+            {
+              "id": "62cff995-cba5-41b0-a3eb-e4caf4fdacbf",
+              "name": "lead_source",
+              "value": "={{ $json.lead.source }}",
+              "type": "string"
+            },
+            {
+              "id": "638458ff-6606-4398-9e4f-4c4985caca17",
+              "name": "lead_email",
+              "value": "={{ $json.lead.email }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        -608
+      ],
+      "id": "4a27c0d3-7898-4a3b-9892-5d697279f1f6",
+      "name": "Return"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "lead",
+              "type": "any"
+            },
+            {
+              "name": "lead_email",
+              "type": "any"
+            },
+            {
+              "name": "lead_company",
+              "type": "any"
+            },
+            {
+              "name": "lead_firstName",
+              "type": "any"
+            },
+            {
+              "name": "lead_lastName",
+              "type": "any"
+            },
+            {
+              "name": "lead_message",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "id": "9a54024d-633b-44dc-aa04-d8cfcb812021",
+      "typeVersion": 1.1,
+      "name": "Start",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        -432,
+        -608
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HubSpot Upsert Contact": {
+      "main": [
+        [
+          {
+            "node": "Shape Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "HubSpot Upsert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shape Output": {
+      "main": [
+        [
+          {
+            "node": "Return",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8ae1436a-7056-45ae-a45e-89fc97188b23",
+  "meta": {
+    "instanceId": "529af08a1386e72ecd741f19fc71d44377f5910651628263c6147272a4ca7547"
+  },
+  "id": "hAz2uP0YWOljIi7X",
+  "tags": []
+}

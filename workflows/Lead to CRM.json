@@ -1,0 +1,1441 @@
+{
+  "name": "Lead to CRM",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "35f289a0-63b0-4541-8f89-9ff2598d3baa",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -944,
+        -448
+      ],
+      "id": "8e197599-2386-44c6-9d7f-d3aa25dd7c9b",
+      "name": "Webhook",
+      "webhookId": "35f289a0-63b0-4541-8f89-9ff2598d3baa",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3sB1LGGLaeGrDEvz",
+          "name": "Lead Webhook Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check the incoming data and tidy it up before anything else happens.\nconst body = $input.first().json.body ?? {};\nconst clean = (v) => (typeof v === 'string' ? v.trim() : '');\nconst titleCase = (s) => s.toLowerCase().replace(/\\b\\w/g, (c) => c.toUpperCase());\nconst errors = [];\n\nconst email = clean(body.email).toLowerCase();\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) errors.push('A valid email is required');\n\nconst fullName = titleCase(clean(body.name));\nif (!fullName) errors.push('Name is required');\n\nconst message = clean(body.message);\nif (message.length < 5) errors.push('Message must be at least 5 characters');\n\nconst parts = fullName.split(/\\s+/).filter(Boolean);\nreturn [{ json: {\n  valid: errors.length === 0,\n  errors,\n  lead: {\n    email,\n    fullName,\n    firstName: parts[0] ?? '',\n    lastName: parts.slice(1).join(' '),\n    company: clean(body.company),\n    message,\n    source: clean(body.source) || 'website',\n  },\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -752,
+        -448
+      ],
+      "id": "310c68ed-9608-43a5-bede-6c4917ec439e",
+      "name": "Validate and Clean"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "422a1689-b06d-4c3d-8baa-c40f235d0a20",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -560,
+        -448
+      ],
+      "id": "725705f5-1f25-4818-a66b-a2bd444a17d3",
+      "name": "valid?"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"rejected\", \"errors\": $json.errors } }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -368,
+        -272
+      ],
+      "id": "9e638415-b152-450a-a54e-bc2afdb05907",
+      "name": "Respond 422 (rejected)"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"received\", \"contactId\": $json.contactId, \"score\": $json.score, \"priority\": $json.priority } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        512,
+        -624
+      ],
+      "id": "559047d5-b706-4739-b95b-f1f1473a28ab",
+      "name": "Respond 200 (received)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=   Lead details:\n   Name: {{ $json.lead_fullName }}\n   Company: {{ $json.lead_company }}\n   Email: {{ $json.lead_email }}\n   Source: {{ $json.lead_source }}\n   Message: {{ $json.lead_message }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "   You are a sales assistant for a small automation agency. Read the lead and do four things.\n   1. Give a score from 0 to 100 for how likely this is a good, ready-to-buy lead (clear need, budget or timeline mentioned, real company = higher).\n   2. Set priority: high if score is 70 or more, medium if 40 to 69, low if below 40.\n   3. Pick one category: sales, support, partnership, spam or other. Write a one-sentence summary.\n   4. Write a short, friendly reply email (under 120 words) addressed to the lead by first name.\n   Rules: ALWAYS call the company_knowledge tool before writing the email, and only state facts (services, prices, response times, policies) that the tool returns. If the tool has no answer, do not guess; say a team member will follow up. Never promise discounts.\nSign every email \"Best regards, The Automation Team\". Never use placeholders like [Your Name] or [Company].\nWhen you mention response times, prices or policies, use the exact wording from the company_knowledge tool, not a vaguer version."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -48,
+        -624
+      ],
+      "id": "20348b4c-8b99-4d70-a60f-92073b4a9f12",
+      "name": "Score Lead and Draft Email"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -48,
+        -432
+      ],
+      "id": "139c5907-a328-408c-b9fe-dac2dabd7c4c",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "6j9vUhTW3nm1Qvpk",
+          "name": "tvero1011"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"score\": { \"type\": \"integer\", \"minimum\": 0, \"maximum\": 100 },\n    \"priority\": { \"type\": \"string\", \"enum\": [\"high\", \"medium\", \"low\"] },\n    \"category\": { \"type\": \"string\", \"enum\": [\"sales\", \"support\", \"partnership\", \"spam\", \"other\"] },\n    \"summary\": { \"type\": \"string\" },\n    \"email_subject\": { \"type\": \"string\" },\n    \"email_body\": { \"type\": \"string\" }\n  },\n  \"required\": [\"score\", \"priority\", \"category\", \"summary\", \"email_subject\", \"email_body\"]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        -432
+      ],
+      "id": "36c16a3b-4615-41a2-9f60-eb59d194cc54",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Look up facts about our company: services, pricing, response times, refund policy and onboarding. Input: a short search question, for example \"starter project price\" or \"how fast do you reply\". Never call this with an empty input.",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "topK": 3,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        -80
+      ],
+      "id": "6634c010-72e4-48b6-bd96-e36fbbe011fd",
+      "name": "company_knowledge",
+      "credentials": {
+        "supabaseApi": {
+          "id": "HY8YbjCU1WF49Un7",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.priority }}",
+                    "rightValue": "high",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "ab4d389d-178a-4acb-a23a-6ac7964bd952"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "High priority"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Medium"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        736,
+        -624
+      ],
+      "id": "f4cdff73-0cc7-4fae-a69e-d213eee4bd24",
+      "name": "Route by Priority"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a2cbb712-b425-4685-b6d0-37e8a1dacbfe",
+              "name": "contactId",
+              "value": "={{ $('Call Sub - HubSpot Upsert Contact').first().json.contactId_firstItem }}",
+              "type": "string"
+            },
+            {
+              "id": "e20a5eea-dda2-434d-9d38-cdf2a76653c3",
+              "name": "isNew",
+              "value": "={{ $('Call Sub - HubSpot Upsert Contact').first().json.isNew_firstItem }}",
+              "type": "boolean"
+            },
+            {
+              "id": "90b7c50e-2d62-4197-aea9-efe687237e4f",
+              "name": "email",
+              "value": "={{ $('Call Sub - HubSpot Upsert Contact').first().json.lead_email_firstItem }}",
+              "type": "string"
+            },
+            {
+              "id": "a1fa59a4-4ddb-4cfc-8d60-1f8632c99707",
+              "name": "fullName",
+              "value": "={{ $('Call Sub - HubSpot Upsert Contact').first().json.lead_fullName_firstItem }}",
+              "type": "string"
+            },
+            {
+              "id": "94de89d4-a3ea-4bc4-ac31-e40818b38a14",
+              "name": "company",
+              "value": "={{ $('Call Sub - HubSpot Upsert Contact').first().json.lead_company_firstItem }}",
+              "type": "string"
+            },
+            {
+              "id": "42ccaca0-786f-4801-abbb-ee3c34e58b56",
+              "name": "score",
+              "value": "={{ $json.output.score }}",
+              "type": "number"
+            },
+            {
+              "id": "1e2e7301-6a29-48fb-a1f6-6ab03e2050fd",
+              "name": "priority",
+              "value": "={{ $json.output.priority }}",
+              "type": "string"
+            },
+            {
+              "id": "0dc884cc-1806-46d3-b12e-6df0e373825a",
+              "name": "category",
+              "value": "={{ $json.output.category }}",
+              "type": "string"
+            },
+            {
+              "id": "a22b9c48-d4ad-4c27-a5ad-9941260d9213",
+              "name": "summary",
+              "value": "={{ $json.output.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "3902b066-f392-4140-bda9-5a07aae7f84e",
+              "name": "emailSubject",
+              "value": "={{ $json.output.email_subject }}",
+              "type": "string"
+            },
+            {
+              "id": "b5ea64b4-0ce4-4ceb-bd83-448ee40cbe43",
+              "name": "emailBody",
+              "value": "={{ $json.output.email_body }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        288,
+        -624
+      ],
+      "id": "69147cb6-5a4e-4c56-8c8d-28635cbdaa82",
+      "name": "Prepare Data"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        -1280
+      ],
+      "id": "ca4f488c-c1ae-4a25-bd1b-cb5bf85b0189",
+      "name": "When clicking ‘Execute workflow’",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "963d47c0-6288-4457-b30a-0612a3e1196e",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1136,
+        -640
+      ],
+      "id": "119e28b4-a402-4f75-9a3b-a3e8ed828f32",
+      "name": "Approved?"
+    },
+    {
+      "parameters": {
+        "tableId": "lead_runs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('Prepare Data').item.json.email }}"
+            },
+            {
+              "fieldId": "full_name",
+              "fieldValue": "={{ $('Prepare Data').item.json.fullName }}"
+            },
+            {
+              "fieldId": "company",
+              "fieldValue": "=   {{ $('Prepare Data').first().json.company }}"
+            },
+            {
+              "fieldId": "score",
+              "fieldValue": "={{ $('Prepare Data').item.json.score }}"
+            },
+            {
+              "fieldId": "priority",
+              "fieldValue": "={{ $('Prepare Data').item.json.priority }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $('Prepare Data').item.json.category }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "={{ $json.status }}"
+            },
+            {
+              "fieldId": "hubspot_contact_id",
+              "fieldValue": "={{ $('Prepare Data').item.json.contactId }}"
+            },
+            {
+              "fieldId": "execution_id",
+              "fieldValue": "={{ $execution.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1664,
+        -336
+      ],
+      "id": "acb23aa6-c7b9-4f09-9bc7-69c040f69f38",
+      "name": "Log Run",
+      "credentials": {
+        "supabaseApi": {
+          "id": "HY8YbjCU1WF49Un7",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "lead_runs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('Validate and Clean').first().json.lead.email }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "rejected_invalid"
+            },
+            {
+              "fieldId": "execution_id",
+              "fieldValue": "={{ $execution.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        -272
+      ],
+      "id": "ee73b651-66d5-424b-afe1-993a2bb5af02",
+      "name": "Log Rejected",
+      "credentials": {
+        "supabaseApi": {
+          "id": "HY8YbjCU1WF49Un7",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.hubapi.com/crm/v3/objects/contacts",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "hubspotAppToken",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "limit",
+              "value": "100"
+            },
+            {
+              "name": "properties",
+              "value": "email,firstname,lastname"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "paginationMode": "responseContainsNextURL",
+              "nextURL": "={{ $response.body.paging?.next?.link }}",
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.paging?.next?.link }}",
+              "limitPagesFetched": true,
+              "maxRequests": 20
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        512,
+        -928
+      ],
+      "id": "2714f8cc-2d68-453b-ab89-092869d6f3a4",
+      "name": "Get All Contacts (paginated)",
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "nvY9ED5itWcDa86f",
+          "name": "HubSpot"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Each incoming item is one PAGE of results. Flatten all pages, then group by email.\nconst contacts = $input.all().flatMap(page => page.json.results ?? []);\nconst byEmail = {};\nfor (const c of contacts) {\n  const email = (c.properties?.email ?? '').toLowerCase().trim();\n  if (!email) continue;\n  (byEmail[email] ||= []).push(c.id);\n}\nconst duplicates = Object.entries(byEmail)\n  .filter(([, ids]) => ids.length > 1)\n  .map(([email, ids]) => ({ email, contactIds: ids }));\nreturn [{ json: { pagesFetched: $input.all().length, totalContacts: contacts.length, duplicateCount: duplicates.length, duplicates } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        736,
+        -928
+      ],
+      "id": "1083c075-c385-48ae-b2ed-d63b5a68d47a",
+      "name": "Find Duplicate Emails",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        272,
+        -928
+      ],
+      "id": "c97c9295-5a88-4dfe-b37d-16d701dedd55",
+      "name": "Schedule Trigger",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const docs = [\n  { source: 'services', text: 'We offer workflow automation, CRM integration (HubSpot), and AI assistants for small businesses. Typical projects connect web forms, email, spreadsheets and chat tools.' },\n  { source: 'pricing', text: 'Starter automation projects begin at 500 USD. Larger CRM and AI projects are quoted after a 30-minute discovery call. Monthly support plans start at 150 USD.' },\n  { source: 'response-times', text: 'We reply to new enquiries within one business day. Urgent support requests from active clients are answered within 4 business hours.' },\n  { source: 'refund-policy', text: 'If we cannot deliver the agreed scope, the unused part of the project fee is refunded within 14 days. Completed and accepted work is not refundable.' },\n  { source: 'onboarding', text: 'After the discovery call we send a written scope. Work starts once the scope is approved and a 50 percent deposit is paid. Clients get a walkthrough video on delivery.' },\n];\nreturn docs.map(d => ({ json: d }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -592,
+        -1280
+      ],
+      "id": "2c5343c5-b1cc-4637-bbb2-67a6b1bf4842",
+      "name": "Company Documents",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {
+          "queryName": "match_documents"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        -336,
+        -1280
+      ],
+      "id": "5ee9947d-5a9a-453e-b942-5becf7b938e1",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "HY8YbjCU1WF49Un7",
+          "name": "Supabase account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.text }}",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "source",
+                "value": "={{ $json.source }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        -240,
+        -1088
+      ],
+      "id": "636b25cf-587d-4353-8c02-b2d8f066f57a",
+      "name": "Default Data Loader",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "chunkSize": 500,
+        "chunkOverlap": 50,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        -944
+      ],
+      "id": "4daa73c3-ca86-49d0-ba1b-5335f0c90883",
+      "name": "Recursive Character Text Splitter",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -416,
+        -1088
+      ],
+      "id": "1fa2bfa0-ca76-41c3-b99f-ea421d4486ff",
+      "name": "Embeddings OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "id": "6j9vUhTW3nm1Qvpk",
+          "name": "tvero1011"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "content": "# ADD RAG TO SUPABASE (RUN ONCE)",
+        "height": 640,
+        "width": 1040,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -992,
+        -1392
+      ],
+      "typeVersion": 1,
+      "id": "1fcad607-ce46-4345-8657-8e3819b31cce",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# Check duplicate email",
+        "height": 320,
+        "width": 976,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        192,
+        -1072
+      ],
+      "typeVersion": 1,
+      "id": "293e67e2-be0c-4c5e-991b-9f38524e23ac",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0CCVFFL7PE",
+          "mode": "list",
+          "cachedResultName": "new-leads"
+        },
+        "message": "=:fire: *New high-priority lead* (score {{ $json.score }})\n*Name:* {{ $json.fullName }}  |  *Company:* {{ $json.company }}\n*Summary:* {{ $json.summary }}\n\n*Draft email*\n*Subject:* {{ $json.emailSubject }}\n{{ $json.emailBody }}",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Approve and Send",
+            "disapproveLabel": "Reject"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        944,
+        -640
+      ],
+      "id": "36bde74c-1e54-4f13-b292-7d2b9d7c976e",
+      "name": "Slack Approval",
+      "webhookId": "4cd8d4a4-da32-4767-a6ac-4ec346f8e006",
+      "credentials": {
+        "slackApi": {
+          "id": "VRri3GRx3p1YWZAV",
+          "name": "Slack Approval"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2b9ebf26-7ee4-4ace-9b69-0d0b24e0afb2",
+              "name": "status",
+              "value": "email_sent",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1552,
+        -784
+      ],
+      "id": "48a3588b-5ff6-41dc-b7e7-072e8ee20e28",
+      "name": "Status: email sent"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2e010ba6-4dd5-4e80-b361-10b6c3cd638b",
+              "name": "status",
+              "value": "approval_rejected",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1248,
+        -480
+      ],
+      "id": "3aa18415-6525-4f78-b096-ba358f5bd486",
+      "name": "Status: rejected by human"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "94ea9867-54e1-489a-9203-30948d7c023e",
+              "name": "status",
+              "value": "stored_only",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        864,
+        -336
+      ],
+      "id": "f88b3279-8b08-453f-822d-ea1dbcb718ea",
+      "name": "Status: stored only"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -32,
+        80
+      ],
+      "id": "8cd48cf6-ed42-4e44-b9d8-c597fa0dcf25",
+      "name": "Embeddings OpenAI (ingestion)",
+      "credentials": {
+        "openAiApi": {
+          "id": "6j9vUhTW3nm1Qvpk",
+          "name": "tvero1011"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "hAz2uP0YWOljIi7X",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead": "={{ $('Validate and Clean').item.json.lead }}",
+            "lead_email": "={{ $json.lead.email }}",
+            "lead_company": "={{ $json.lead.company }}",
+            "lead_firstName": "={{ $json.lead.firstName }}",
+            "lead_lastName": "={{ $json.lead.lastName }}",
+            "lead_message": "={{ $json.lead.message }}"
+          },
+          "matchingColumns": [
+            "lead",
+            "lead_email",
+            "lead_company",
+            "lead_firstName",
+            "lead_lastName",
+            "lead_message"
+          ],
+          "schema": [
+            {
+              "id": "lead",
+              "displayName": "lead",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lead_email",
+              "displayName": "lead_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lead_company",
+              "displayName": "lead_company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lead_firstName",
+              "displayName": "lead_firstName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lead_lastName",
+              "displayName": "lead_lastName",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "lead_message",
+              "displayName": "lead_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -352,
+        -624
+      ],
+      "name": "Call Sub - HubSpot Upsert Contact",
+      "id": "29012b68-c39f-46a3-8180-9769f6764706"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "11JdPJzRdEoOT7nn",
+          "mode": "list"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "email_firstItem": "={{ $('Prepare Data').first().json.email }}",
+            "emailSubject_firstItem": "={{ $('Prepare Data').first().json.emailSubject }}",
+            "emailBody_firstItem": "={{ $('Prepare Data').first().json.emailBody }}",
+            "summary_firstItem": "={{ $('Prepare Data').first().json.summary }}",
+            "fullName_firstItem": "={{ $('Prepare Data').first().json.fullName }}",
+            "contactId_firstItem": "={{ $('Prepare Data').first().json.contactId }}"
+          },
+          "matchingColumns": [
+            "email_firstItem",
+            "emailSubject_firstItem",
+            "emailBody_firstItem",
+            "summary_firstItem",
+            "fullName_firstItem",
+            "contactId_firstItem"
+          ],
+          "schema": [
+            {
+              "id": "email_firstItem",
+              "displayName": "email_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "emailSubject_firstItem",
+              "displayName": "emailSubject_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "emailBody_firstItem",
+              "displayName": "emailBody_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "summary_firstItem",
+              "displayName": "summary_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fullName_firstItem",
+              "displayName": "fullName_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "contactId_firstItem",
+              "displayName": "contactId_firstItem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        -784
+      ],
+      "name": "Call Sub - Send Email and HubSpot Follow-up Task",
+      "id": "4d7c43ad-db8b-49a4-9a60-a15098903481"
+    },
+    {
+      "parameters": {
+        "content": "# Error Handler - Alert and Log\n## MUST BE SEPARATE WORKFLOW\n",
+        "height": 336,
+        "width": 736
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        192,
+        -1456
+      ],
+      "typeVersion": 1,
+      "id": "1687d9e6-7b51-4953-8d81-17569d94ad76",
+      "name": "Sticky Note3",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "tableId": "error_log",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_name",
+              "fieldValue": "={{ $json.workflow.name }}"
+            },
+            {
+              "fieldId": "failed_node",
+              "fieldValue": "={{ $json.execution.lastNodeExecuted }}"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ $json.execution.lastNodeExecuted }}"
+            },
+            {
+              "fieldId": "execution_id",
+              "fieldValue": "={{ $json.execution.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -1312
+      ],
+      "id": "d6f2aa2d-46d2-4a45-940f-f3a463ac4f8d",
+      "name": "Log Error",
+      "credentials": {
+        "supabaseApi": {
+          "id": "HY8YbjCU1WF49Un7",
+          "name": "Supabase account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0CCVFFL7PE",
+          "mode": "id"
+        },
+        "text": "=:rotating_light: *Workflow failed*\n*Workflow:* {{ $json.workflow.name }}\n*Node:* {{ $json.execution.lastNodeExecuted }}\n*Error:* {{ $json.execution.error.message }}\n*Execution:* {{ $json.execution.url }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        688,
+        -1312
+      ],
+      "id": "a42011e2-1ff2-476a-905c-83e078c9e760",
+      "name": "Send a message",
+      "webhookId": "72928135-881e-4c08-af5f-8dd885e4511a",
+      "credentials": {
+        "slackApi": {
+          "id": "VRri3GRx3p1YWZAV",
+          "name": "Slack Approval"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        272,
+        -1312
+      ],
+      "id": "b7a16515-f84f-4f0a-893d-5b1818267b5a",
+      "name": "Error Trigger",
+      "disabled": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate and Clean",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate and Clean": {
+      "main": [
+        [
+          {
+            "node": "valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "valid?": {
+      "main": [
+        [
+          {
+            "node": "Call Sub - HubSpot Upsert Contact",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond 422 (rejected)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 200 (received)": {
+      "main": [
+        [
+          {
+            "node": "Route by Priority",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Score Lead and Draft Email",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Score Lead and Draft Email",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Lead and Draft Email": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "company_knowledge": {
+      "ai_tool": [
+        [
+          {
+            "node": "Score Lead and Draft Email",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Priority": {
+      "main": [
+        [
+          {
+            "node": "Slack Approval",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Status: stored only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 (received)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Company Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Call Sub - Send Email and HubSpot Follow-up Task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Status: rejected by human",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond 422 (rejected)": {
+      "main": [
+        [
+          {
+            "node": "Log Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Rejected": {
+      "main": [
+        []
+      ]
+    },
+    "Get All Contacts (paginated)": {
+      "main": [
+        [
+          {
+            "node": "Find Duplicate Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get All Contacts (paginated)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Company Documents": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Approval": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: email sent": {
+      "main": [
+        [
+          {
+            "node": "Log Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: rejected by human": {
+      "main": [
+        [
+          {
+            "node": "Log Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status: stored only": {
+      "main": [
+        [
+          {
+            "node": "Log Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI (ingestion)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "company_knowledge",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Sub - HubSpot Upsert Contact": {
+      "main": [
+        [
+          {
+            "node": "Score Lead and Draft Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Sub - Send Email and HubSpot Follow-up Task": {
+      "main": [
+        [
+          {
+            "node": "Status: email sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "hlEcjNmw6YncBn8z",
+    "executionTimeout": -1
+  },
+  "versionId": "cb1ca421-1923-4f58-9512-f80de3034a60",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "529af08a1386e72ecd741f19fc71d44377f5910651628263c6147272a4ca7547"
+  },
+  "id": "O9FqYroTYrgoAW9u",
+  "tags": []
+}

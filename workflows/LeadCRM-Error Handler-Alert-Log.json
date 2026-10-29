@@ -1,0 +1,118 @@
+{
+  "name": "LeadCRM-Error Handler-Alert-Log",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        -192
+      ],
+      "id": "a600675a-3a99-45df-b7ba-1f31d874390b",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0CCVFFL7PE",
+          "mode": "id"
+        },
+        "text": "=:rotating_light: *Workflow failed*\n*Workflow:* {{ $json.workflow.name }}\n*Node:* {{ $json.execution.lastNodeExecuted }}\n*Error:* {{ $json.execution.error.message }}\n*Execution:* {{ $json.execution.url }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        128,
+        -192
+      ],
+      "id": "bbdfe78e-a168-46e9-a64c-7a0e46946fb8",
+      "name": "Send a message",
+      "webhookId": "bb41acd0-3f8a-4d8d-a35a-6e3160e3e0cb",
+      "credentials": {
+        "slackApi": {
+          "id": "VRri3GRx3p1YWZAV",
+          "name": "Slack Approval"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "error_log",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "workflow_name",
+              "fieldValue": "={{ $json.workflow.name }}"
+            },
+            {
+              "fieldId": "failed_node",
+              "fieldValue": "={{ $json.execution.lastNodeExecuted }}"
+            },
+            {
+              "fieldId": "error_message",
+              "fieldValue": "={{ $json.execution.lastNodeExecuted }}"
+            },
+            {
+              "fieldId": "execution_id",
+              "fieldValue": "={{ $json.execution.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -192
+      ],
+      "id": "119a742a-0bd0-494b-a30b-d8b7786357e6",
+      "name": "Log Error",
+      "credentials": {
+        "supabaseApi": {
+          "id": "HY8YbjCU1WF49Un7",
+          "name": "Supabase account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "2714002e-8f12-43ce-8b8e-3383e2614982",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "529af08a1386e72ecd741f19fc71d44377f5910651628263c6147272a4ca7547"
+  },
+  "id": "hlEcjNmw6YncBn8z",
+  "tags": []
+}
